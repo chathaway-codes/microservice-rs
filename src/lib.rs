@@ -9,3 +9,6 @@ pub use context::Context;
 pub use module_binder::ModuleBinder;
 pub use module_collector::ModuleCollector;
 pub use server_health::ServerHealth;
+
+#[cfg(test)]
+mod tests;

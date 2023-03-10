@@ -1,12 +1,12 @@
-use std::{thread, time::Duration};
+use std::{thread, time::Duration, sync::Arc};
 
 use log::error;
 
 use crate::Context;
 
 pub struct ServerHealth {
-    on_healthy_callbacks: Vec<Box<dyn FnOnce(Context) -> anyhow::Result<()> + Send>>,
-    on_shutdown_callbacks: Vec<Box<dyn FnOnce(Context) -> anyhow::Result<()> + Send>>,
+    on_healthy_callbacks: Vec<Box<dyn FnOnce(Arc<Context>) -> anyhow::Result<()> + Send>>,
+    on_shutdown_callbacks: Vec<Box<dyn FnOnce(Arc<Context>) -> anyhow::Result<()> + Send>>,
 }
 
 impl ServerHealth {
@@ -17,9 +17,7 @@ impl ServerHealth {
         }
     }
 
-    pub fn run(self) -> anyhow::Result<()> {
-        let ctx = Context::new();
-        let (ctx, cancel) = ctx.with_cancel();
+    pub fn run(self, ctx: Arc<Context>) -> anyhow::Result<()> {
         let mut threads = vec![];
         // Spin off all healthy callbacks
         for cb in self.on_healthy_callbacks {
@@ -38,7 +36,7 @@ impl ServerHealth {
                 if threads[i].is_finished() {
                     if let Err(e) = threads.remove(i).join() {
                         error!("{:?}", e);
-                        cancel();
+                        ctx.cancel();
                     }
                 } else {
                     i += 1;
@@ -63,14 +61,14 @@ impl ServerHealth {
 
     pub fn register_on_healthy<F>(&mut self, cb: F)
     where
-        F: FnOnce(Context) -> anyhow::Result<()> + Send + 'static,
+        F: FnOnce(Arc<Context>) -> anyhow::Result<()> + Send + 'static,
     {
         self.on_healthy_callbacks.push(Box::new(cb))
     }
 
     pub fn register_on_shutdown<F>(&mut self, cb: F)
     where
-        F: FnOnce(Context) -> anyhow::Result<()> + Send + 'static,
+        F: FnOnce(Arc<Context>) -> anyhow::Result<()> + Send + 'static,
     {
         self.on_shutdown_callbacks.push(Box::new(cb))
     }

@@ -2,12 +2,12 @@ use std::{any::Any, collections::HashMap};
 
 use anyhow::anyhow;
 
-pub struct ModuleBinder {
-    modules: HashMap<&'static str, Box<dyn Any>>,
+pub struct ModuleBinder<'a> {
+    modules: &'a mut HashMap<&'static str, Box<dyn Any + Send>>,
 }
 
-impl ModuleBinder {
-    pub(crate) fn new(modules: HashMap<&'static str, Box<dyn Any>>) -> Self {
+impl<'a> ModuleBinder<'a> {
+    pub(crate) fn new(modules: &'a mut HashMap<&'static str, Box<dyn Any + Send>>) -> Self {
         Self { modules }
     }
     pub fn get<T: 'static>(&mut self, key: &'static str) -> anyhow::Result<&mut T> {

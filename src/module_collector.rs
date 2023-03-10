@@ -1,14 +1,14 @@
 use std::{
     any::Any,
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet}, sync::Arc,
 };
 
 use anyhow::bail;
 
-use crate::{configurator::Configurator, ModuleBinder, ServerHealth};
+use crate::{configurator::Configurator, ModuleBinder, ServerHealth, Context};
 
 pub struct ModuleCollector {
-    modules: HashMap<&'static str, Box<dyn Any>>,
+    modules: HashMap<&'static str, Box<dyn Any + Send>>,
     configurators: HashMap<&'static str, Box<dyn Configurator>>,
 }
 
@@ -27,6 +27,7 @@ impl ModuleCollector {
     ///
     /// Example:
     /// ```
+    /// use std::any::Any;
     /// use microservice_rs::{ModuleCollector, Configurator, ModuleBinder, ServerHealth};
     ///
     /// const MODULE_NAME: &str = "mycrate/modules/http_server.rs:23";
@@ -40,7 +41,7 @@ impl ModuleCollector {
     /// }
     ///
     /// impl Configurator for MyModuleConfigurator {
-    ///     fn configure(&mut self, _binder: &mut ModuleBinder, _server: &mut ServerHealth) -> anyhow::Result<()> {
+    ///     fn configure(&mut self, _module: Box<dyn Any>, _binder: &mut ModuleBinder, _server: &mut ServerHealth) -> anyhow::Result<()> {
     ///         Ok(())
     ///     }
     ///     fn depends_on(&self) -> Vec<&'static str> {
@@ -49,7 +50,7 @@ impl ModuleCollector {
     /// }
     /// ```
     ///
-    pub fn register<T: Any, C: Configurator + 'static>(
+    pub fn register<T: Any + Send, C: Configurator + 'static>(
         &mut self,
         key: &'static str,
         value: T,
@@ -63,17 +64,19 @@ impl ModuleCollector {
     }
 
     /// start configures the modules and runs till all health functions exit.
-    pub fn start(self) -> anyhow::Result<()> {
+    pub fn start(self, ctx: Arc<Context>) -> anyhow::Result<()> {
         let order = self.config_order()?;
-        let (binder, mut configurators) = (self.modules, self.configurators);
-        let mut binder = ModuleBinder::new(binder);
+        let (mut binder, mut configurators) = (self.modules, self.configurators);
         let mut server = ServerHealth::new();
         for k in order {
+            let module = binder.remove(k).unwrap();
+            let mut binder = ModuleBinder::new(&mut binder);
             configurators
                 .remove(k)
                 .unwrap()
-                .configure(&mut binder, &mut server)?;
+                .configure(module, &mut binder, &mut server)?;
         }
+        server.run(ctx)?;
         Ok(())
     }
 
@@ -151,6 +154,7 @@ mod tests {
         impl Configurator for Mod1Config {
             fn configure(
                 &mut self,
+                _module: Box<dyn Any>,
                 _binder: &mut crate::module_binder::ModuleBinder,
                 _server: &mut crate::server_health::ServerHealth,
             ) -> anyhow::Result<()> {
@@ -165,6 +169,7 @@ mod tests {
         impl Configurator for Mod2Config {
             fn configure(
                 &mut self,
+                _module: Box<dyn Any>,
                 _binder: &mut crate::module_binder::ModuleBinder,
                 _server: &mut crate::server_health::ServerHealth,
             ) -> anyhow::Result<()> {
@@ -183,6 +188,9 @@ mod tests {
 
         assert_eq!(collector.modules.len(), 2);
 
-        collector.start().unwrap();
+        let ctx = Context::new();
+        ctx.cancel();
+
+        collector.start(ctx).unwrap();
     }
 }
