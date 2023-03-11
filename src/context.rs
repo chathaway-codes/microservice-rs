@@ -21,7 +21,7 @@ impl Context {
         let next = Self::new();
         let mut inner = self.inner.write().unwrap();
         inner.children.push(next.clone());
-        next.clone()
+        next
     }
 
     pub fn with_deadline(&self) -> Arc<Context> {

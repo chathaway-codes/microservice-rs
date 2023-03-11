@@ -96,34 +96,33 @@ impl ModuleCollector {
             for dep in module.depends_on() {
                 blocked_by
                     .entry(dep)
-                    .or_insert_with(|| HashSet::new())
+                    .or_insert_with(HashSet::new)
                     .insert(key);
                 inverse_blocked_by
                     .entry(key)
-                    .or_insert_with(|| HashSet::new())
+                    .or_insert_with(HashSet::new)
                     .insert(dep);
             }
-            blocked_by.entry(key).or_insert_with(|| HashSet::new());
+            blocked_by.entry(key).or_insert_with(HashSet::new);
             inverse_blocked_by
                 .entry(key)
-                .or_insert_with(|| HashSet::new());
+                .or_insert_with(HashSet::new);
         }
 
         // insert them
-        while blocked_by.len() > 0 {
+        while !blocked_by.is_empty() {
             let mut to_delete = vec![];
             // TODO: we can improve the performance here by keeping track which of things are unblocked
             // rather than iterating over all of them
             for (key, set) in blocked_by.iter() {
-                if set.len() == 0 {
+                if set.is_empty() {
                     order.push(*key);
                     to_delete.push(*key);
                 }
             }
-            if to_delete.len() == 0 {
+            if to_delete.is_empty() {
                 bail!(format!(
-                    "stuck resolving dependencies; remaining: {:?}",
-                    blocked_by
+                    "stuck resolving dependencies; remaining: {blocked_by:?}"
                 ))
             }
             for k in to_delete {
