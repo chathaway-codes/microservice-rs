@@ -1,7 +1,6 @@
 use std::{net::{TcpListener, TcpStream}, any::Any, io::{self, Write}, time::Duration, thread, io::Read};
 
 use anyhow::bail;
-use log::info;
 
 use super::*;
 
@@ -14,10 +13,6 @@ struct TcpServer {
 }
 impl TcpServer {
     fn key() -> &'static str { TCP_SERVER_KEY }
-    fn register(collector: &mut ModuleCollector) -> anyhow::Result<()> {
-        let listener = TcpListener::bind("0.0.0.0:0")?;
-        Self::register_with_args(listener, collector)
-    }
     fn register_with_args(listener: TcpListener, collector: &mut ModuleCollector) -> anyhow::Result<()> {
         collector.register(Self::key(), Self{socket: listener, routes: vec!()}, TcpServerConfig{});
         Ok(())
@@ -33,7 +28,7 @@ impl Configurator for TcpServerConfig {
     fn configure(
             &mut self,
             module: Box<dyn Any>,
-            binder: &mut ModuleBinder,
+            _binder: &mut ModuleBinder,
             server: &mut ServerHealth,
         ) -> anyhow::Result<()> {
         let module: TcpServer = *module.downcast().unwrap();
@@ -83,7 +78,7 @@ impl Configurator for SomeModuleConfig {
             &mut self,
             module: Box<dyn Any>,
             binder: &mut ModuleBinder,
-            server: &mut ServerHealth,
+            _server: &mut ServerHealth,
         ) -> anyhow::Result<()> {
         let path = module.downcast::<SomeModule>().unwrap().msg;
         let tcp_server: &mut TcpServer = binder.get(TcpServer::key())?;
